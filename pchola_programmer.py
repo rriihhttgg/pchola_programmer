@@ -71,11 +71,10 @@ async def claude_cmd(ctx, *, text: str = None):
 
             reply += f'\n\n*Осталось запросов: **{new_remaining}***'
             await ctx.reply(reply)
-
         except Exception as e:
-    print(f'Claude API error: {type(e).__name__}: {e}')
-    set_requests(user_id, remaining)
-    await ctx.reply(f'❌ Ошибка: `{type(e).__name__}: {str(e)[:200]}`')
+            print(f'Claude API error: {type(e).__name__}: {e}')
+            set_requests(user_id, remaining)
+            await ctx.reply(f'❌ Ошибка: `{type(e).__name__}: {str(e)[:200]}`')
 
 
 @bot.command(name='cgive')
