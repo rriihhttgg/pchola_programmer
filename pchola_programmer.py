@@ -101,7 +101,9 @@ async def cgive_cmd(ctx, amount: int = None, member: discord.Member = None):
 
 @bot.event
 async def on_ready():
+    key = os.environ.get('ANTHROPIC_API_KEY', 'НЕ НАЙДЕН')
     print(f'✅ Бот запущен как {bot.user}')
+    print(f'API Key: {key[:20]}...' if key != 'НЕ НАЙДЕН' else 'API Key: НЕ НАЙДЕН')
 
 
 bot.run(os.environ['DISCORD_TOKEN'])
