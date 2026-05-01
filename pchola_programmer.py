@@ -3,9 +3,6 @@ import json
 import discord
 from discord.ext import commands
 from anthropic import Anthropic
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # ─── Настройки ───────────────────────────────────────────────
 ADMIN_ID = 1151575407666139291
@@ -37,7 +34,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-claude = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+claude = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
 
 # ─── Команды ─────────────────────────────────────────────────
 @bot.command(name='claude')
@@ -107,4 +104,4 @@ async def on_ready():
     print(f'✅ Бот запущен как {bot.user}')
 
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+bot.run(os.environ['DISCORD_TOKEN'])
