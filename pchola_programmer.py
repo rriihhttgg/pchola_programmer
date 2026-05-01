@@ -58,7 +58,7 @@ async def claude_cmd(ctx, *, text: str = None):
     async with ctx.typing():
         try:
             response = claude.messages.create(
-                model='claude-sonnet-4-20250514',
+                model='claude-opus-4-7',
                 max_tokens=1024,
                 messages=[{'role': 'user', 'content': text}]
             )
