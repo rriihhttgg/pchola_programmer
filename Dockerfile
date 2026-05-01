@@ -3,4 +3,4 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY . .
-CMD ["python", "discord_programmer.py"]
+CMD ["python", "pchola_programmer.py"]
