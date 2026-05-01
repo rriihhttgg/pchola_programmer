@@ -3,10 +3,9 @@ import json
 import discord
 from discord.ext import commands
 from anthropic import Anthropic
+from dotenv import load_dotenv
 
-# ─── Ключи ───────────────────────────────────────────────────
-ANTHROPIC_API_KEY = 'sk-ant-ваш_ключ_сюда'
-DISCORD_TOKEN = 'ваш_токен_дискорда_сюда'
+load_dotenv()
 
 # ─── Настройки ───────────────────────────────────────────────
 ADMIN_ID = 1151575407666139291
@@ -38,7 +37,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-claude = Anthropic(api_key=ANTHROPIC_API_KEY)
+claude = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 # ─── Команды ─────────────────────────────────────────────────
 @bot.command(name='claude')
@@ -75,7 +74,7 @@ async def claude_cmd(ctx, *, text: str = None):
 
         except Exception as e:
             print(f'Claude API error: {e}')
-            set_requests(user_id, remaining)
+            set_requests(user_id, remaining)  # возвращаем запрос
             await ctx.reply('❌ Ошибка при обращении к Claude. Запрос не списан.')
 
 
@@ -85,11 +84,12 @@ async def cgive_cmd(ctx, amount: int = None, member: discord.Member = None):
         await ctx.reply('❌ У вас нет доступа к этой команде.')
         return
 
+    # Определяем цель: упоминание или reply
     target = member
     if target is None and ctx.message.reference:
         ref = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         target = ref.author
-
+    
     if target is None:
         await ctx.reply('❌ Укажите пользователя: `!cgive <число> @user` или ответьте на сообщение `!cgive <число>`')
         return
@@ -108,4 +108,4 @@ async def on_ready():
     print(f'✅ Бот запущен как {bot.user}')
 
 
-bot.run(DISCORD_TOKEN)
+bot.run(os.getenv('DISCORD_TOKEN'))
