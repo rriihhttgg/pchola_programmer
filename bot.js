@@ -42,7 +42,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: 'https://api.serega-cherni-yeban.online',
+  baseURL: 'https://api.gngn.my',
 });
 
 // ─── Обработка сообщений ─────────────────────────────────────
@@ -76,7 +76,6 @@ client.on('messageCreate', async (message) => {
       const stream = await anthropic.messages.stream({
         model: MODEL,
         max_tokens: 32768,
-        system: 'Всегда пиши полный код без сокращений, пропусков и комментариев вида "... (остальной код)". Никогда не обрезай ответ.',
         messages: [{ role: 'user', content: text }],
       });
 
