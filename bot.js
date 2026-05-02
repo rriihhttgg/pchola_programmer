@@ -98,6 +98,14 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  // !tokens
+  if (content === '!tokens') {
+    const userId = message.author.id;
+    const remaining = getRequests(userId);
+    await message.reply(`🔑 У вас осталось **${remaining}** запросов.`);
+    return;
+  }
+
   // !cgive <число> [@user]
   if (content.startsWith('!cgive')) {
     if (message.author.id !== ADMIN_ID) {
