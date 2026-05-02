@@ -75,7 +75,7 @@ client.on('messageCreate', async (message) => {
 
       const response = await anthropic.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 32768,
         messages: [{ role: 'user', content: text }],
       });
 
