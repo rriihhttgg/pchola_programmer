@@ -76,6 +76,7 @@ client.on('messageCreate', async (message) => {
       const stream = await anthropic.messages.stream({
         model: MODEL,
         max_tokens: 32768,
+        system: 'Всегда пиши полный код без сокращений, пропусков и комментариев вида "... (остальной код)". Никогда не обрезай ответ.',
         messages: [{ role: 'user', content: text }],
       });
 
