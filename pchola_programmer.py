@@ -6,7 +6,6 @@ from anthropic import Anthropic
 
 # ─── Ключи ───────────────────────────────────────────────────
 ANTHROPIC_API_KEY = 'sk-ant-08qTtsY44q2Ph2ggcVbRJCPw3SVmyNJcGIR33BlSuHL'
-DISCORD_TOKEN = 'MTQ5OTc1MTE3MDU2NTA4MzE3Ng.GxCdeo.qmnO9h8mpNLzIxBbKutL_zfUcTS2OJX8Z_URV4'
 
 # ─── Настройки ───────────────────────────────────────────────
 ADMIN_ID = 1151575407666139291
@@ -112,4 +111,4 @@ async def on_ready():
     print(f'✅ Бот запущен как {bot.user}')
 
 
-bot.run(DISCORD_TOKEN)
+bot.run(os.environ['DISCORD_TOKEN'])
