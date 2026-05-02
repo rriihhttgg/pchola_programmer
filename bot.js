@@ -71,13 +71,17 @@ client.on('messageCreate', async (message) => {
     setRequests(userId, remaining - 1);
 
     try {
-      await message.channel.sendTyping();
+  await message.channel.sendTyping();
 
-      const response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 32768,
-        messages: [{ role: 'user', content: text }],
-      });
+  const stream = await anthropic.messages.stream({
+    model: MODEL,
+    max_tokens: 32768,
+    messages: [{ role: 'user', content: text }],
+  });
+
+  const response = await stream.finalMessage();
+  let reply = response.content[0].text;
+  const newRemaining = remaining - 1;
 
       let reply = response.content[0].text;
       const newRemaining = remaining - 1;
