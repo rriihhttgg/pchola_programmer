@@ -69,18 +69,17 @@ client.on('messageCreate', async (message) => {
     }
 
     setRequests(userId, remaining - 1);
+
     try {
       await message.channel.sendTyping();
+
       const stream = await anthropic.messages.stream({
-      model: MODEL,
-      max_tokens: 32768,
-      messages: [{ role: 'user', content: text }],
-    });
+        model: MODEL,
+        max_tokens: 32768,
+        messages: [{ role: 'user', content: text }],
+      });
 
-  const response = await stream.finalMessage();
-  let reply = response.content[0].text;
-  const newRemaining = remaining - 1;
-
+      const response = await stream.finalMessage();
       let reply = response.content[0].text;
       const newRemaining = remaining - 1;
 
@@ -92,7 +91,7 @@ client.on('messageCreate', async (message) => {
       await message.reply(reply);
     } catch (e) {
       console.error(`Claude API error: ${e.constructor.name}: ${e.message}`);
-      setRequests(userId, remaining); // вернуть запрос при ошибке
+      setRequests(userId, remaining);
       await message.reply(`❌ Ошибка: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
     }
 
@@ -114,7 +113,6 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // Цель — упоминание или reply
     let target = message.mentions.members?.first() ?? null;
 
     if (!target && message.reference) {
