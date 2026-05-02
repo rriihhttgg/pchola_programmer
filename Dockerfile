@@ -1,6 +1,6 @@
-FROM python:3.11-slim
+FROM node:20-alpine
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["python", "pchola_programmer.py"]
+COPY package.json .
+RUN npm install
+COPY bot.js .
+CMD ["node", "bot.js"]
