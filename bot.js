@@ -5,7 +5,7 @@ const fs = require('fs');
 // ─── Настройки ───────────────────────────────────────────────
 const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
-const MODEL = 'claude-opus-4-5';
+const MODEL = 'claude-opus-4-7';
 
 // ─── Загрузка/сохранение запросов ────────────────────────────
 function loadRequests() {
@@ -42,6 +42,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: 'https://api.gngn.my',
 });
 
 // ─── Обработка сообщений ─────────────────────────────────────
