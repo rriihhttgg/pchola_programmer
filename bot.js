@@ -42,7 +42,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: 'https://api.gngn.my',
+  baseURL: 'https://api.serega-cherni-yeban.online',
 });
 
 // ─── Обработка сообщений ─────────────────────────────────────
