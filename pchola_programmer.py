@@ -4,6 +4,10 @@ import discord
 from discord.ext import commands
 from anthropic import Anthropic
 
+# ─── Ключи ───────────────────────────────────────────────────
+ANTHROPIC_API_KEY = 'sk-ant-08qTtsY44q2Ph2ggcVbRJCPw3SVmyNJcGIR33BlSuHL'
+DISCORD_TOKEN = 'MTQ5OTc1MTE3MDU2NTA4MzE3Ng.GxCdeo.qmnO9h8mpNLzIxBbKutL_zfUcTS2OJX8Z_URV4'
+
 # ─── Настройки ───────────────────────────────────────────────
 ADMIN_ID = 1151575407666139291
 REQUESTS_FILE = 'requests.json'
@@ -13,8 +17,12 @@ def load_requests() -> dict:
     if not os.path.exists(REQUESTS_FILE):
         with open(REQUESTS_FILE, 'w') as f:
             json.dump({}, f)
+        return {}
     with open(REQUESTS_FILE, 'r') as f:
-        return json.load(f)
+        content = f.read().strip()
+        if not content:
+            return {}
+        return json.loads(content)
 
 def save_requests(data: dict):
     with open(REQUESTS_FILE, 'w') as f:
@@ -34,7 +42,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-claude = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
+claude = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # ─── Команды ─────────────────────────────────────────────────
 @bot.command(name='claude')
@@ -55,7 +63,7 @@ async def claude_cmd(ctx, *, text: str = None):
     async with ctx.typing():
         try:
             response = claude.messages.create(
-                model='claude-opus-4-5',
+                model='claude-opus-4-7',
                 max_tokens=1024,
                 messages=[{'role': 'user', 'content': text}]
             )
@@ -68,10 +76,11 @@ async def claude_cmd(ctx, *, text: str = None):
 
             reply += f'\n\n*Осталось запросов: **{new_remaining}***'
             await ctx.reply(reply)
+
         except Exception as e:
-            print(f'Claude API error: {type(e).__name__}: {e}')
+            print(f'Claude API error: {e}')
             set_requests(user_id, remaining)
-            await ctx.reply(f'❌ Ошибка: `{type(e).__name__}: {str(e)[:200]}`')
+            await ctx.reply('❌ Ошибка при обращении к Claude. Запрос не списан.')
 
 
 @bot.command(name='cgive')
@@ -80,12 +89,11 @@ async def cgive_cmd(ctx, amount: int = None, member: discord.Member = None):
         await ctx.reply('❌ У вас нет доступа к этой команде.')
         return
 
-    # Определяем цель: упоминание или reply
     target = member
     if target is None and ctx.message.reference:
         ref = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         target = ref.author
-    
+
     if target is None:
         await ctx.reply('❌ Укажите пользователя: `!cgive <число> @user` или ответьте на сообщение `!cgive <число>`')
         return
@@ -101,9 +109,7 @@ async def cgive_cmd(ctx, amount: int = None, member: discord.Member = None):
 
 @bot.event
 async def on_ready():
-    key = os.environ.get('ANTHROPIC_API_KEY', 'НЕ НАЙДЕН')
     print(f'✅ Бот запущен как {bot.user}')
-    print(f'API Key: {key[:20]}...' if key != 'НЕ НАЙДЕН' else 'API Key: НЕ НАЙДЕН')
 
 
-bot.run(os.environ['DISCORD_TOKEN'])
+bot.run(DISCORD_TOKEN)
