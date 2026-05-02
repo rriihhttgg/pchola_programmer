@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AttachmentBuilder } = require('discord.js');
 const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 
@@ -80,15 +80,23 @@ client.on('messageCreate', async (message) => {
       });
 
       const response = await stream.finalMessage();
-      let reply = response.content[0].text;
+      const reply = response.content[0].text;
       const newRemaining = remaining - 1;
+      const footer = `\n\nОсталось запросов: ${newRemaining}`;
 
       if (reply.length > 1900) {
-        reply = reply.slice(0, 1900) + '...\n*(ответ обрезан)*';
+        // Отправляем как файл
+        const fileContent = reply + footer;
+        const attachment = new AttachmentBuilder(Buffer.from(fileContent, 'utf-8'), {
+          name: 'response.txt',
+        });
+        await message.reply({
+          content: `📄 Ответ слишком длинный, отправляю файлом. *Осталось запросов: **${newRemaining}***`,
+          files: [attachment],
+        });
+      } else {
+        await message.reply(reply + `\n\n*Осталось запросов: **${newRemaining}***`);
       }
-
-      reply += `\n\n*Осталось запросов: **${newRemaining}***`;
-      await message.reply(reply);
     } catch (e) {
       console.error(`Claude API error: ${e.constructor.name}: ${e.message}`);
       setRequests(userId, remaining);
