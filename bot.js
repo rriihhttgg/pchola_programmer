@@ -6,12 +6,32 @@ const fs = require('fs');
 const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
 const MODEL = 'claude-opus-4-7';
+const MAX_HISTORY = 20; // максимум сообщений в истории на пользователя
+
+// ─── История чатов (в памяти) ────────────────────────────────
+const chatHistory = new Map(); // userId -> [{role, content}]
+
+function getHistory(userId) {
+  if (!chatHistory.has(userId)) chatHistory.set(userId, []);
+  return chatHistory.get(userId);
+}
+
+function addToHistory(userId, role, content) {
+  const history = getHistory(userId);
+  history.push({ role, content });
+  // Обрезаем до MAX_HISTORY сообщений (пар)
+  if (history.length > MAX_HISTORY) {
+    history.splice(0, history.length - MAX_HISTORY);
+  }
+}
+
+function clearHistory(userId) {
+  chatHistory.set(userId, []);
+}
 
 // ─── Загрузка/сохранение запросов ────────────────────────────
 function loadRequests() {
-  if (!fs.existsSync(REQUESTS_FILE)) {
-    fs.writeFileSync(REQUESTS_FILE, JSON.stringify({}));
-  }
+  if (!fs.existsSync(REQUESTS_FILE)) fs.writeFileSync(REQUESTS_FILE, JSON.stringify({}));
   return JSON.parse(fs.readFileSync(REQUESTS_FILE, 'utf8'));
 }
 
@@ -20,14 +40,30 @@ function saveRequests(data) {
 }
 
 function getRequests(userId) {
-  const data = loadRequests();
-  return data[userId] ?? 0;
+  return loadRequests()[userId] ?? 0;
 }
 
 function setRequests(userId, count) {
   const data = loadRequests();
   data[userId] = count;
   saveRequests(data);
+}
+
+// ─── Разбивка длинного текста на части ───────────────────────
+function splitMessage(text, maxLength = 1900) {
+  const parts = [];
+  while (text.length > 0) {
+    if (text.length <= maxLength) {
+      parts.push(text);
+      break;
+    }
+    // Ищем последний перенос строки в пределах лимита
+    let splitAt = text.lastIndexOf('\n', maxLength);
+    if (splitAt === -1) splitAt = maxLength;
+    parts.push(text.slice(0, splitAt));
+    text = text.slice(splitAt).trimStart();
+  }
+  return parts;
 }
 
 // ─── Клиенты ─────────────────────────────────────────────────
@@ -69,6 +105,7 @@ client.on('messageCreate', async (message) => {
     }
 
     setRequests(userId, remaining - 1);
+    addToHistory(userId, 'user', text);
 
     try {
       await message.channel.sendTyping();
@@ -76,29 +113,37 @@ client.on('messageCreate', async (message) => {
       const stream = await anthropic.messages.stream({
         model: MODEL,
         max_tokens: 131072,
-        messages: [{ role: 'user', content: text }],
+        messages: getHistory(userId),
       });
 
       const response = await stream.finalMessage();
       const reply = response.content[0].text;
       const newRemaining = remaining - 1;
-      const footer = `\n\nОсталось запросов: ${newRemaining}`;
+
+      // Сохраняем ответ в историю
+      addToHistory(userId, 'assistant', reply);
+
+      const footer = `\n\n*Осталось запросов: **${newRemaining}***`;
 
       if (reply.length > 1900) {
-        // Отправляем как файл
-        const fileContent = reply + footer;
-        const attachment = new AttachmentBuilder(Buffer.from(fileContent, 'utf-8'), {
-          name: 'response.txt',
-        });
-        await message.reply({
-          content: `📄 Ответ слишком длинный, отправляю файлом. *Осталось запросов: **${newRemaining}***`,
-          files: [attachment],
-        });
+        // Разбиваем на части и отправляем последовательно
+        const parts = splitMessage(reply);
+        for (let i = 0; i < parts.length; i++) {
+          const isLast = i === parts.length - 1;
+          if (i === 0) {
+            await message.reply(parts[i] + (isLast ? footer : ''));
+          } else {
+            await message.channel.send(parts[i] + (isLast ? footer : ''));
+          }
+        }
       } else {
-        await message.reply(reply + `\n\n*Осталось запросов: **${newRemaining}***`);
+        await message.reply(reply + footer);
       }
     } catch (e) {
       console.error(`Claude API error: ${e.constructor.name}: ${e.message}`);
+      // Откатываем сообщение пользователя из истории при ошибке
+      const history = getHistory(userId);
+      if (history.at(-1)?.role === 'user') history.pop();
       setRequests(userId, remaining);
       await message.reply(`❌ Ошибка: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
     }
@@ -108,9 +153,15 @@ client.on('messageCreate', async (message) => {
 
   // !tokens
   if (content === '!tokens') {
-    const userId = message.author.id;
-    const remaining = getRequests(userId);
+    const remaining = getRequests(message.author.id);
     await message.reply(`🔑 У вас осталось **${remaining}** запросов.`);
+    return;
+  }
+
+  // !cclear — очистить историю чата
+  if (content === '!cclear') {
+    clearHistory(message.author.id);
+    await message.reply('🗑️ История вашего чата очищена.');
     return;
   }
 
@@ -137,16 +188,15 @@ client.on('messageCreate', async (message) => {
     }
 
     if (!target) {
-      await message.reply('❌ Укажите пользователя: `!cgive <число> @user` или ответьте на сообщение `!cgive <число>`');
+      await message.reply('❌ Укажите пользователя: `!cgive <число> @user` или ответьте на сообщение.');
       return;
     }
 
     const targetId = target.id ?? target.user?.id;
-    const targetMention = target.toString();
     const current = getRequests(targetId);
     setRequests(targetId, current + amount);
 
-    await message.reply(`✅ Пользователю ${targetMention} выдано **${amount}** запросов. Всего: **${current + amount}**`);
+    await message.reply(`✅ Пользователю ${target.toString()} выдано **${amount}** запросов. Всего: **${current + amount}**`);
     return;
   }
 });
