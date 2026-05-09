@@ -7,7 +7,7 @@ const fs = require('fs');
 const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
 const CLAUDE_MODEL = 'claude-opus-4-7';
-const CODEX_MODEL = 'gpt-5.4'; // меняй на нужную модель
+const CODEX_MODEL = 'gpt-5.5';
 const MAX_HISTORY = 20;
 
 // ─── История чатов (в памяти) ────────────────────────────────
