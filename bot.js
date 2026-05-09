@@ -1,15 +1,17 @@
-const { Client, GatewayIntentBits, Partials, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const fs = require('fs');
 
 // ─── Настройки ───────────────────────────────────────────────
 const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
-const MODEL = 'claude-opus-4-7';
-const MAX_HISTORY = 20; // максимум сообщений в истории на пользователя
+const CLAUDE_MODEL = 'claude-opus-4-7';
+const CODEX_MODEL = 'gpt-5.4'; // меняй на нужную модель
+const MAX_HISTORY = 20;
 
 // ─── История чатов (в памяти) ────────────────────────────────
-const chatHistory = new Map(); // userId -> [{role, content}]
+const chatHistory = new Map();
 
 function getHistory(userId) {
   if (!chatHistory.has(userId)) chatHistory.set(userId, []);
@@ -19,7 +21,6 @@ function getHistory(userId) {
 function addToHistory(userId, role, content) {
   const history = getHistory(userId);
   history.push({ role, content });
-  // Обрезаем до MAX_HISTORY сообщений (пар)
   if (history.length > MAX_HISTORY) {
     history.splice(0, history.length - MAX_HISTORY);
   }
@@ -57,13 +58,27 @@ function splitMessage(text, maxLength = 1900) {
       parts.push(text);
       break;
     }
-    // Ищем последний перенос строки в пределах лимита
     let splitAt = text.lastIndexOf('\n', maxLength);
     if (splitAt === -1) splitAt = maxLength;
     parts.push(text.slice(0, splitAt));
     text = text.slice(splitAt).trimStart();
   }
   return parts;
+}
+
+// ─── Универсальная отправка ответа ───────────────────────────
+async function sendReply(message, reply, remaining) {
+  const footer = `\n\n*Осталось запросов: **${remaining}***`;
+  if (reply.length > 1900) {
+    const parts = splitMessage(reply);
+    for (let i = 0; i < parts.length; i++) {
+      const isLast = i === parts.length - 1;
+      if (i === 0) await message.reply(parts[i] + (isLast ? footer : ''));
+      else await message.channel.send(parts[i] + (isLast ? footer : ''));
+    }
+  } else {
+    await message.reply(reply + footer);
+  }
 }
 
 // ─── Клиенты ─────────────────────────────────────────────────
@@ -81,13 +96,19 @@ const anthropic = new Anthropic({
   baseURL: 'https://api.gngn.my',
 });
 
+const codex = new OpenAI({
+  apiKey: process.env.CODEX_API_KEY,
+  baseURL: 'https://codex.sale/v1',
+});
+
 // ─── Обработка сообщений ─────────────────────────────────────
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
   const content = message.content.trim();
+  const userId = message.author.id;
 
-  // !claude <вопрос>
+  // ── !claude <вопрос> ──────────────────────────────────────
   if (content.startsWith('!claude')) {
     const text = content.slice('!claude'.length).trim();
 
@@ -96,9 +117,7 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    const userId = message.author.id;
     const remaining = getRequests(userId);
-
     if (remaining <= 0) {
       await message.reply('❌ У вас закончились запросы. Обратитесь к администратору.');
       return;
@@ -111,63 +130,84 @@ client.on('messageCreate', async (message) => {
       await message.channel.sendTyping();
 
       const stream = await anthropic.messages.stream({
-        model: MODEL,
+        model: CLAUDE_MODEL,
         max_tokens: 131072,
         messages: getHistory(userId),
       });
 
       const response = await stream.finalMessage();
       const reply = response.content[0].text;
-      const newRemaining = remaining - 1;
-
-      // Сохраняем ответ в историю
       addToHistory(userId, 'assistant', reply);
-
-      const footer = `\n\n*Осталось запросов: **${newRemaining}***`;
-
-      if (reply.length > 1900) {
-        // Разбиваем на части и отправляем последовательно
-        const parts = splitMessage(reply);
-        for (let i = 0; i < parts.length; i++) {
-          const isLast = i === parts.length - 1;
-          if (i === 0) {
-            await message.reply(parts[i] + (isLast ? footer : ''));
-          } else {
-            await message.channel.send(parts[i] + (isLast ? footer : ''));
-          }
-        }
-      } else {
-        await message.reply(reply + footer);
-      }
+      await sendReply(message, reply, remaining - 1);
     } catch (e) {
       console.error(`Claude API error: ${e.constructor.name}: ${e.message}`);
-      // Откатываем сообщение пользователя из истории при ошибке
       const history = getHistory(userId);
       if (history.at(-1)?.role === 'user') history.pop();
       setRequests(userId, remaining);
-      await message.reply(`❌ Ошибка: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
+      await message.reply(`❌ Ошибка Claude: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
     }
 
     return;
   }
 
-  // !tokens
+  // ── !codex <вопрос> ───────────────────────────────────────
+  if (content.startsWith('!codex')) {
+    const text = content.slice('!codex'.length).trim();
+
+    if (!text) {
+      await message.reply('❌ Напишите вопрос после `!codex`.');
+      return;
+    }
+
+    const remaining = getRequests(userId);
+    if (remaining <= 0) {
+      await message.reply('❌ У вас закончились запросы. Обратитесь к администратору.');
+      return;
+    }
+
+    setRequests(userId, remaining - 1);
+    addToHistory(userId, 'user', text);
+
+    try {
+      await message.channel.sendTyping();
+
+      const response = await codex.chat.completions.create({
+        model: CODEX_MODEL,
+        messages: getHistory(userId),
+        max_tokens: 4096,
+      });
+
+      const reply = response.choices[0].message.content;
+      addToHistory(userId, 'assistant', reply);
+      await sendReply(message, reply, remaining - 1);
+    } catch (e) {
+      console.error(`Codex API error: ${e.constructor.name}: ${e.message}`);
+      const history = getHistory(userId);
+      if (history.at(-1)?.role === 'user') history.pop();
+      setRequests(userId, remaining);
+      await message.reply(`❌ Ошибка Codex: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
+    }
+
+    return;
+  }
+
+  // ── !tokens ───────────────────────────────────────────────
   if (content === '!tokens') {
-    const remaining = getRequests(message.author.id);
+    const remaining = getRequests(userId);
     await message.reply(`🔑 У вас осталось **${remaining}** запросов.`);
     return;
   }
 
-  // !cclear — очистить историю чата
+  // ── !cclear ───────────────────────────────────────────────
   if (content === '!cclear') {
-    clearHistory(message.author.id);
+    clearHistory(userId);
     await message.reply('🗑️ История вашего чата очищена.');
     return;
   }
 
-  // !cgive <число> [@user]
+  // ── !cgive <число> [@user] ────────────────────────────────
   if (content.startsWith('!cgive')) {
-    if (message.author.id !== ADMIN_ID) {
+    if (userId !== ADMIN_ID) {
       await message.reply('❌ У вас нет доступа к этой команде.');
       return;
     }
@@ -203,9 +243,11 @@ client.on('messageCreate', async (message) => {
 
 // ─── Запуск ──────────────────────────────────────────────────
 client.once('ready', () => {
-  const key = process.env.ANTHROPIC_API_KEY ?? 'НЕ НАЙДЕН';
+  const claudeKey = process.env.ANTHROPIC_API_KEY ?? 'НЕ НАЙДЕН';
+  const codexKey = process.env.CODEX_API_KEY ?? 'НЕ НАЙДЕН';
   console.log(`✅ Бот запущен как ${client.user.tag}`);
-  console.log(key !== 'НЕ НАЙДЕН' ? `API Key: ${key.slice(0, 20)}...` : 'API Key: НЕ НАЙДЕН');
+  console.log(claudeKey !== 'НЕ НАЙДЕН' ? `Claude Key: ${claudeKey.slice(0, 20)}...` : 'Claude Key: НЕ НАЙДЕН');
+  console.log(codexKey !== 'НЕ НАЙДЕН' ? `Codex Key: ${codexKey.slice(0, 20)}...` : 'Codex Key: НЕ НАЙДЕН');
 });
 
 client.login(process.env.DISCORD_TOKEN);
