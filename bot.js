@@ -260,60 +260,54 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ── !banana <вопрос> [+ изображение] ─────────────────────
+// ── !banana <вопрос> [+ изображение] ─────────────────────
   if (content.startsWith('!banana')) {
     const text = content.slice('!banana'.length).trim();
-
     if (!text && message.attachments.size === 0) {
       await message.reply('❌ Напишите вопрос и/или прикрепите изображение после `!banana`.');
       return;
     }
-
     try {
       await message.channel.sendTyping();
-
       const history = getGeminiHistory(bananaHistory, userId);
       const chat = genai.chats.create({
         model: BANANA_MODEL,
         history,
       });
-
-      // Собираем parts: текст + возможные изображения
       const parts = [];
-
-      // Обрабатываем прикреплённые изображения
       if (message.attachments.size > 0) {
         for (const attachment of message.attachments.values()) {
           const mimeType = attachment.contentType ?? 'image/png';
           if (!mimeType.startsWith('image/')) continue;
-
-          // Загружаем изображение как base64
           const imgResponse = await fetch(attachment.url);
           const arrayBuffer = await imgResponse.arrayBuffer();
           const base64 = Buffer.from(arrayBuffer).toString('base64');
-
-          parts.push({
-            inlineData: { data: base64, mimeType },
+          parts.push({ inlineData: { data: base64, mimeType } });
+        }
+      }
+      if (text) parts.push({ text });
+      const response = await chat.sendMessage({ message: parts });
+      let reply = '';
+      for (const part of response.candidates[0].content.parts) {
+        if (part.text) {
+          reply += part.text;
+        } else if (part.inlineData) {
+          const buffer = Buffer.from(part.inlineData.data, 'base64');
+          const ext = part.inlineData.mimeType.split('/')[1] ?? 'png';
+          await message.channel.send({
+            files: [{ attachment: buffer, name: `generated.${ext}` }]
           });
         }
       }
-
-      if (text) parts.push({ text });
-
-      const response = await chat.sendMessage({ message: parts });
-      const reply = response.text;
-
-      // Сохраняем в историю только текст (изображения не сериализуем)
+      if (!reply) reply = '🖼️ Готово!';
       const historyText = text || '[изображение]';
       addToGeminiHistory(bananaHistory, userId, 'user', historyText);
       addToGeminiHistory(bananaHistory, userId, 'model', reply);
-
       await sendReplyFree(message, reply);
     } catch (e) {
       console.error(`Banana API error: ${e.constructor.name}: ${e.message}`);
       await message.reply(`❌ Ошибка Banana: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
     }
-
     return;
   }
 
