@@ -9,8 +9,8 @@ const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
 const CLAUDE_MODEL = 'claude-opus-4-7';
 const CODEX_MODEL = 'gpt-5.5';
-const GEMINI_MODEL = 'gemini-2.5-pro';
-const BANANA_MODEL = 'gemini-3.1-flash-image-preview';
+const GEMINI_MODEL = 'gemini-pro-latest';
+const BANANA_MODEL = 'nano-banana-pro-preview';
 const MAX_HISTORY = 20;
 
 // ─── История чатов (в памяти) ────────────────────────────────
