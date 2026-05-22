@@ -384,6 +384,137 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  // ── !audio [вопрос] [+ аудиофайл] ─────────────────────────────────
+  if (content.startsWith('!audio')) {
+    const text = content.slice('!audio'.length).trim();
+
+    // Проверяем наличие аудиофайла
+    const audioAttachment = message.attachments.find(att => {
+      const ext = att.name.split('.').pop().toLowerCase();
+      return ['mp3', 'wav', 'ogg', 'm4a', 'webm', 'flac'].includes(ext);
+    });
+
+    if (!audioAttachment && !text) {
+      await message.reply('Прикрепи аудиофайл и/или напиши вопрос после `!audio`.');
+      return;
+    }
+
+    try {
+      await message.channel.sendTyping();
+
+      // Загружаем аудиофайл, если прикреплён
+      let mimeType = null;
+      let audioData = null;
+
+      if (audioAttachment) {
+        const audioResponse = await fetch(audioAttachment.url);
+        const arrayBuffer = await audioResponse.arrayBuffer();
+        audioData = Buffer.from(arrayBuffer).toString('base64');
+
+        // Определяем MIME-тип на основе расширения файла
+        const ext = audioAttachment.name.split('.').pop().toLowerCase();
+        const mimeTypes = {
+          'mp3': 'audio/mpeg',
+          'wav': 'audio/wav',
+          'ogg': 'audio/ogg',
+          'm4a': 'audio/mp4',
+          'webm': 'audio/webm',
+          'flac': 'audio/flac'
+        };
+        mimeType = mimeTypes[ext] || 'audio/mpeg';
+      }
+
+      // Создаём отдельную историю для аудио-чата
+      const audioUserId = userId + '_audio';
+      if (!geminiHistory.has(audioUserId)) {
+        geminiHistory.set(audioUserId, []);
+      }
+      const audioHistory = geminiHistory.get(audioUserId);
+
+      // Создаём чат с моделью для работы с аудио
+      const chat = genai.chats.create({ 
+        model: 'gemini-2.5-flash-native-audio-latest',
+        history: audioHistory 
+      });
+
+      // Подготавливаем части сообщения
+      const parts = [];
+
+      // Добавляем аудио, если есть
+      if (audioData && mimeType) {
+        parts.push({ 
+          inlineData: { 
+            data: audioData, 
+            mimeType: mimeType 
+          } 
+        });
+      }
+
+      // Добавляем текстовый вопрос, если есть
+      if (text) {
+        parts.push({ text });
+      }
+
+      // Отправляем запрос
+      const response = await chat.sendMessage({ message: parts });
+
+      // Обработаем ответ
+      let textReply = '';
+      let audioDataReply = null;
+      let audioMimeType = null;
+
+      for (const part of response.candidates[0].content.parts) {
+        if (part.text) {
+          textReply += part.text;
+        } else if (part.inlineData) {
+          // Сохраняем аудио для отправки
+          audioDataReply = part.inlineData.data;
+          audioMimeType = part.inlineData.mimeType;
+        }
+      }
+
+      // Сохраняем в историю для продолжения диалога
+      const historyText = text || '[аудио]';
+      addToGeminiHistory(geminiHistory, audioUserId, 'user', historyText);
+      
+      if (textReply) {
+        addToGeminiHistory(geminiHistory, audioUserId, 'model', textReply);
+      }
+
+      // Отправляем текстовый ответ
+      if (textReply) {
+        await sendReplyFree(message, textReply);
+      }
+
+      // Отправляем аудио-ответ, если модель его создала
+      if (audioDataReply && audioMimeType) {
+        const ext = audioMimeType.split('/')[1] || 'mp3';
+        const buffer = Buffer.from(audioDataReply, 'base64');
+        await message.channel.send({
+          files: [{ attachment: buffer, name: `response.${ext}` }]
+        });
+      }
+
+      // Если ничего не было возвращено
+      if (!textReply && !audioDataReply) {
+        await message.reply('⚠️ Модель не вернула ответ.');
+      }
+
+    } catch (e) {
+      console.error(`Ошибка Audio API: ${e.constructor.name}: ${e.message}`);
+      await message.reply(`❌ Ошибка Audio: \`${e.constructor.name}: ${String(e.message).slice(0, 200)}\``);
+    }
+
+    return;
+  }
+
+  // ── !aclear ────────────────────────────────────────────────────────
+  if (content === '!aclear') {
+    geminiHistory.delete(userId + '_audio');
+    await message.reply('🗑️ История аудио-чата очищена.');
+    return;
+  }
+
   // ── !tokens ───────────────────────────────────────────────
   if (content === '!tokens') {
     const remaining = getRequests(userId);
