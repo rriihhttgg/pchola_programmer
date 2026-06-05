@@ -142,6 +142,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: 'https://claude-code-cli.vibecode-claude.online',
 });
 
 const codex = new OpenAI({
