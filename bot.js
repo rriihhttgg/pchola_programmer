@@ -7,7 +7,7 @@ const fs = require('fs');
 // ─── Настройки ───────────────────────────────────────────────
 const ADMIN_ID = '1151575407666139291';
 const REQUESTS_FILE = 'requests.json';
-const CLAUDE_MODEL = 'claude-opus-4-5';
+const CLAUDE_MODEL = 'claude-opus-4-8';
 const CODEX_MODEL = 'gpt-5.5';
 const GEMINI_MODEL = 'gemini-2.5-pro';
 const BANANA_MODEL = 'gemini-3.1-flash-image-preview';
@@ -142,6 +142,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apikey: process.env.ANTHROPIC_API_KEY,
+  baseURL: 'https://codex.sale/v1',
 });
 
 const codex = new OpenAI({
