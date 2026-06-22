@@ -142,7 +142,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apikey: process.env.ANTHROPIC_API_KEY,
-  baseURL: 'https://codex.sale/v1',
+  baseURL: 'https://cc.freemodel.dev',
 });
 
 const codex = new OpenAI({
