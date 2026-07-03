@@ -142,7 +142,7 @@ const client = new Client({
 
 const anthropic = new Anthropic({
   apikey: process.env.ANTHROPIC_API_KEY,
-  baseURL: 'https://api.zentherixapi.xyz',
+  baseURL: 'https://api-claude-codex.ru',
 });
 
 const codex = new OpenAI({
